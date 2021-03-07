@@ -1,0 +1,140 @@
+package com.example.flappyrect;
+
+import android.graphics.RectF;
+import android.util.Log;
+
+public class Ball {
+
+    // Let the thread .start() just one time
+    boolean xv=true;
+
+    //level difficulty
+
+    float difficulty=1f;
+
+    private float ballWidth;
+    private float ballHeight;
+
+    private RectF rectBall;
+    private RectF rectAux;
+
+    private float xVelocity;
+     float yVelocity;
+
+    private int screenY;
+
+     boolean moveDown=false;
+
+    Ball(int screenX){
+
+        ballHeight=screenX/30;
+        ballWidth=screenX/30;
+
+        rectBall=new RectF();
+        rectAux=new RectF();
+
+
+        //the ball will slowly go down
+        moveDown=true;
+
+    }
+
+    void increaseDifficulty(){
+        difficulty=difficulty*1.1f;
+    }
+
+    void resetDifficulty(){
+        difficulty=1;
+    }
+
+    void reset(int screenX,int screenY){
+
+        rectBall.left=screenX/10;
+        rectBall.top= (float) (screenY/2);
+        rectBall.right=screenX/10+ballWidth;
+        rectBall.bottom= (float) (screenY/2+ballWidth);
+
+        yVelocity=screenY/20;
+
+        this.screenY=screenY;
+
+    }
+
+    void update(long fps){
+
+
+        if(moveDown) {
+            rectBall.top = rectBall.top + (yVelocity*difficulty / fps);
+            rectBall.bottom = rectBall.bottom + (yVelocity*difficulty / fps);
+        }
+        else{
+            rectBall.top = rectBall.top - (yVelocity*difficulty / fps);
+            rectBall.bottom = rectBall.bottom - (yVelocity*difficulty / fps);
+        }
+    }
+
+    void increaseVelocity(){
+        yVelocity=yVelocity*1.15f;
+    }
+
+    void decreaseVelocity(){
+        yVelocity=yVelocity*0.990f;
+    }
+
+    void resetVelocity(){
+        yVelocity=screenY/20;
+    }
+
+     RectF getRectBall() {
+        return rectBall;
+    }
+
+
+    //here the ball comes back to his behavior
+
+    void moveDownMethod(){
+
+        moveDown=true;
+
+        // not repeat the Thread in FlappyClass
+
+        xv=false;
+    }
+
+    //...
+
+
+
+    // Here the ball rise
+
+    void moveUpMethod(){
+
+        //Go in the if brace on FlappyGame.run() just one time
+        xv=true;
+
+        moveDown=false;
+
+        // Remember the first position of the ball and moves up with 0.4 %
+        rectAux.top=rectBall.top;
+
+        //Speed move up
+
+        yVelocity=screenY/2;
+
+    }
+
+    boolean jumpMoveUpMethod(){
+
+        // Remember the first position of the ball and moves up with 0.4 % = 1/25%
+
+
+        if(rectBall.top>(-screenY/25+rectAux.top))
+
+             return true;
+        else
+            return false;
+    }
+
+    //.....
+
+}
