@@ -1,0 +1,587 @@
+package com.example.flappyrect;
+
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.content.res.AssetFileDescriptor;
+import android.content.res.AssetManager;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.media.AudioManager;
+import android.media.SoundPool;
+import android.os.Environment;
+import android.util.Log;
+import android.view.MotionEvent;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
+
+import static android.os.SystemClock.sleep;
+
+public class FlappyGame extends SurfaceView implements Runnable {
+
+
+    // All these are for playing sounds
+
+    private SoundPool mSP;
+    private int mJump=-1;
+
+    //score
+
+    private int nrScore=0;
+    private int score=0;
+    Obstacle mv;
+
+    private boolean colision=false;
+
+    private int nr;
+
+    boolean aux=true;
+
+    //Get the text file
+    private SharedPreferences.Editor mEditor;
+    private int highscore;
+
+    // debugging
+    private final boolean DEBUGGING=true;
+
+    //Game on
+
+    private volatile boolean playing;
+    private boolean pause=true;
+
+    //How many frames per second
+
+    private long FPS;
+    private final int MILLIS_IN_SECOND = 1000;
+
+    //Trying to start the thread just one time
+    private boolean threadFirstTime=true;
+
+    //Game objects
+    private Ball ball;
+    private List<Obstacle> obstacleList;
+
+    // Objects for design
+    private SurfaceHolder surfaceHolder;
+    private Canvas canvas;
+    private Paint paint;
+    private Paint pRect;
+
+    // Holds the resolution for screen
+    private int screenX;
+    private int screenY;
+
+    // How big will the text be?
+    private int mFontSize;
+
+    //Here is the Thread and two control variables
+
+    private Thread gameThread = null;
+
+    public FlappyGame(Context context, int x, int y) {
+
+        super(context);
+
+
+        screenX=x;
+        screenY=y;
+
+        //Font is 5%
+        mFontSize =screenX/30;
+
+
+        //Initialize the objects
+        //ready for drawing with
+        //getHolder is a method of SurfaceView
+
+        surfaceHolder=getHolder();
+        paint=new Paint();
+        pRect=new Paint();
+
+        //Intialize the ball
+
+        ball=new Ball(screenX);
+        obstacleList=new ArrayList<Obstacle>();
+
+
+        //
+        SharedPreferences prefs;
+        prefs = context.getSharedPreferences("HiScore",
+                Context.MODE_PRIVATE);
+
+
+
+
+        // Initialize the mEditor ready
+        mEditor = prefs.edit();
+        // Load high score from a entry in the file
+        // labeled "hiscore"
+
+        highscore = prefs.getInt("hi_score", 0);
+
+
+        mSP=new SoundPool(5, AudioManager.STREAM_MUSIC,0);
+
+        // Open each of the sound files in turn
+        // and load them into RAM ready to play
+        // the try-catch blocks handle when this fails
+        // and is required
+        try{
+
+            AssetManager assetManager=context.getAssets();
+            AssetFileDescriptor descriptor;
+
+            descriptor=assetManager.openFd("jump.ogg");
+            mJump=mSP.load(descriptor,0);
+
+        } catch (IOException e) {
+            Log.d("Error","failed to load sound files");
+        }
+        startNewGame();
+
+
+    }
+
+    void addObstacle(){
+
+        nr++;
+        Obstacle obstacleNew=new Obstacle(screenX,screenY);
+        obstacleNew.reset();
+        obstacleList.add(obstacleNew);
+
+        if(nr>3){
+            obstacleList.remove(0);
+            nrScore--;
+
+        }
+
+    }
+
+    //This method will start when the draw method check a collision
+
+    void newGame(){
+
+
+        // this mean that touchUp (the finger is on air ) is false
+        touchUp.touch=false;
+
+        // we release the thread to make another one
+
+        try {
+            threadOnTouch.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        threadOnTouch=new Thread(touchUp);
+
+
+
+
+
+        score=0;
+        nrScore=0;
+        nr=0;
+        ball.reset(screenX,screenY);
+
+        obstacleList=new ArrayList<Obstacle>();
+        addObstacle();
+
+
+    }
+
+    void weNeedObstacle(){
+
+        if(obstacleList.get(obstacleList.size()-1).addNewObstacle()){
+            addObstacle();
+        }
+
+    }
+
+    private void draw() {
+
+
+        if(surfaceHolder.getSurface().isValid()){
+            //Lock the canvas (graphics memory) ready to draw
+            canvas=surfaceHolder.lockCanvas();
+
+            //Fill the screen with a solid color
+            canvas.drawColor(Color.argb(255, 26, 128, 182));
+
+            //Chose a color to paint with
+            paint.setColor(Color.argb(150,255,255,255));
+
+            //Draw the ball
+
+             canvas.drawRect(ball.getRectBall(),paint);
+
+             //Draw the obstacle
+
+            pRect.setColor(Color.argb(255,255,255,255));
+            pRect.setStyle(Paint.Style.STROKE);
+
+
+            //Draw the start
+
+            weNeedObstacle();
+
+            sleep(1);
+            for(Obstacle x:obstacleList){
+
+                canvas.drawRect(x.getOb1(),pRect);
+
+                //Draw the obstacle 2
+                canvas.drawRect(x.getOb2(),pRect);
+            }
+
+
+
+            if(DEBUGGING){
+                printDebuggingText();
+            }
+
+            //Display the drawing on screen
+            //unlockCanvasAndPost is a method of SurfaceView
+            surfaceHolder.unlockCanvasAndPost(canvas);
+        }
+        if (colision){
+            newGame();
+            colision=false;
+        }
+
+    }
+
+    private void printDebuggingText() {
+
+        paint.setTextSize(mFontSize);
+        canvas.drawText("FPS:"+FPS, (float) (screenX/15), (float) (screenY/20),paint);
+        canvas.drawText("Score:"+score, (float) (screenX/15), (float) (screenY/15),paint);
+        canvas.drawText("HighScore:"+highscore, (float) (screenX/15), (float) (screenY/10),paint);
+
+    }
+
+    private void startNewGame() {
+
+
+        pause=true;
+
+        // the ball resumes his position
+        ball.reset(screenX,screenY);
+
+        // The rectangle objects
+        addObstacle();
+
+        sleep(1000);
+
+    }
+
+    public void resume() {
+
+        // FPS on, game on
+        playing=true;
+        gameThread=new Thread(this);
+
+
+        //Start the thread
+        gameThread.start();
+    }
+
+    public void pause() {
+
+        //FPS OFF, game off
+        playing=false;
+        try {
+            gameThread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    //When we are pressing the finger on the screen
+    //The ball jumps immediately
+    //Over time the ball slowly decrease and comes back to his normal gravitation
+
+    //We are creating the class for THIS "TouchDown"
+    // And the Thread that runs simultaneously with the Thread of the FlappyActivity class.
+
+    // creating a special thread for decreaseVelocity
+
+    TouchDown touchDown=new TouchDown();
+    Thread threadTouchDown=new Thread(touchDown);
+
+    class TouchDown implements Runnable{
+
+        boolean touch=true;
+
+        @Override
+        public void run() {
+            while (touch){
+
+               sleep(5);
+                ball.decreaseVelocity();
+            }
+        }
+    }
+
+    //.......................................................................................
+
+    //When we we lift our finger from the screen
+    //The ball slowly goes down
+    //Over time the ball increase speed and this makes the ball fall down quickly
+
+    //We are creating the class for THIS "TouchUp"
+    // And the Thread that runs simultaneously with the Thread of the FlappyActivity class.
+
+    // creating a special thread for increaseVelocity
+
+    TouchUp touchUp=new TouchUp();
+    Thread threadOnTouch=new Thread(touchUp);
+
+
+    class TouchUp implements Runnable{
+
+        boolean touch=true;
+
+
+        @Override
+        public void run() {
+
+
+            while(touch) {
+                sleep(20);
+                ball.increaseVelocity();
+            }
+
+
+
+        }
+    }
+
+    void highScore(){
+
+        if(score>highscore){
+            highscore=score;
+            mEditor.putInt("hi_score",highscore);
+            mEditor.commit();
+        }
+
+
+
+    }
+
+    @Override
+    public void run() {
+
+        //if we are on pause, the FlappyBird Thread will not run
+        while (playing) {
+
+            long frameStartTime=System.currentTimeMillis();
+
+            // 1.first move Down is false because we are pressing the finger
+            // on the screen when we start playing the game
+
+            //2. This makes moveDown to be equal to false because the ball goes up.
+
+            //3. if jumpMoveUpMethod is true => the ball still goes up
+            // Else   the ball goes down and jumpMoveUpMethod => false
+
+            // => When jumpMoveUpMethod is false, we are inside the if method!
+
+            highScore();
+
+            if(!(ball.jumpMoveUpMethod() && ball.moveDown==false))
+            {
+
+                // We need to go inside ball just one time because of .start() thread
+                // The moveDownMethod make xv=false and this brace will never be called again until
+                // xv=false;
+                if(ball.xv){
+
+
+                    //TurnOff the thread goesUp ball
+
+                    touchDown.touch=false;
+
+                    try {
+                        threadTouchDown.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+
+
+                    threadTouchDown=new Thread(touchDown);
+
+
+                    //....
+
+
+                    //makes threadOnTouch activate just 1 time!
+                    threadFirstTime=true;
+
+                    //....
+
+                    //give the velocity back of the ball
+                    ball.resetVelocity();
+
+                    // Start the thread that makes the ball goes down
+                    threadOnTouch.start();
+
+
+                }
+
+                // The moveDownMethod make xv=false and this brace will never be called again until
+                // xv=false;
+                ball.moveDownMethod();
+
+
+            }
+
+
+
+            verifycolision();
+
+
+
+            if(!pause){
+
+                update();
+
+            }
+
+            draw();
+
+            Log.d("Highscore","HighScore= "+highscore);
+
+
+
+            verifyscore();
+
+            long timeThisFrame=System.currentTimeMillis()-frameStartTime;
+
+            if(timeThisFrame>0){
+                FPS=MILLIS_IN_SECOND/timeThisFrame;
+            }
+
+        }
+
+    }
+
+    private void verifyscore() {
+
+        if(ball.getRectBall().left>obstacleList.get(nrScore).getOb1().right){
+            score++;
+            nrScore++;
+
+       }
+    }
+
+    private void verifycolision() {
+
+
+        //collision with another blocks
+
+        for(Obstacle x:obstacleList){
+
+            if(RectF.intersects(x.getOb1(),ball.getRectBall()))
+            {  colision=true;
+               break;
+            }
+            if(RectF.intersects(x.getOb2(),ball.getRectBall()))
+            {  colision=true;
+                break;
+            }
+
+        }
+
+        //collision with bottom or top
+
+        if(ball.getRectBall().bottom>screenY)
+        {
+            colision=true;
+        }
+
+        if(ball.getRectBall().top<0){
+
+            colision=true;
+
+        }
+    }
+
+    private void update() {
+        ball.update(FPS);
+
+        for(Obstacle x:obstacleList){
+            x.update(FPS);
+        }
+    }
+
+
+
+    public boolean onTouchEvent(MotionEvent motionEvent){
+
+
+
+        if((motionEvent.getAction() & MotionEvent.ACTION_MASK)==MotionEvent.ACTION_DOWN){
+
+
+            //play the sound
+
+            mSP.play(mJump,1,1,0,0,1);
+
+            // this mean that touchUp (the finger is on air ) is false
+                touchUp.touch=false;
+
+            // we release the thread to make another one
+
+            try {
+                threadOnTouch.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+
+            threadOnTouch=new Thread(touchUp);
+
+            // the parameters for new ball
+
+
+            ball.resetVelocity();
+            ball.moveUpMethod();
+
+                pause=false;
+                touchUp.touch=true;
+
+                //This activates the thread 1 time!
+
+            if(threadFirstTime) {
+
+                threadTouchDown.start();
+                touchDown.touch=true;
+            }
+
+            //This makes to not go again in if brace
+
+            threadFirstTime=false;
+
+
+
+        }
+
+
+
+        return true;
+
+    }
+}
