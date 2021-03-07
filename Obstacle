@@ -1,0 +1,137 @@
+package com.example.flappyrect;
+
+import android.graphics.RectF;
+import android.util.Log;
+
+import java.util.Random;
+
+public class Obstacle {
+
+    private float screenX;
+    private float screenY;
+
+    //difficulty level
+
+    float difficulty=1f;
+
+    private RectF ob1;
+    private RectF ob2;
+
+    //the Unfilled way
+
+    private float pixelUnfilled1;
+    private float pixelUnfilled2;
+
+    //speedBlock
+
+    private float xVelocity;
+
+    //The width block
+
+    private float widthblock;
+
+    //The variable the moves the blocks
+
+    private int spatiuWidth=0;
+    static int i=0;
+    private double randomNumber;
+
+
+    Obstacle(int screenX,int screenY){
+
+
+        Random random=new Random();
+        randomNumber= (double) (1+3*random.nextDouble());
+
+
+        this.screenX=screenX;
+        this.screenY=screenY;
+
+        ob1=new RectF();
+        ob2=new RectF();
+
+        //speed
+
+        xVelocity=screenX/6;
+
+        calculateUnfilledWay();
+
+
+    }
+
+    void increaseDifficulty(){
+        difficulty=difficulty*1.1f;
+    }
+
+    void resetDifficulty(){
+        difficulty=1;
+    }
+
+    void update(long FPS){
+
+        ob1.left=ob1.left-(xVelocity*difficulty)/FPS;
+        ob1.right=ob1.right-(xVelocity*difficulty)/FPS;
+
+        ob2.left=ob2.left-(xVelocity*difficulty)/FPS;
+        ob2.right=ob2.right-(xVelocity*difficulty)/FPS;
+
+
+    }
+
+    private void calculateUnfilledWay(){
+
+        float way; // the space
+        float blockH; // the block
+
+        // The unfilled space
+        way=screenY/10;
+        blockH= (float) ((screenY-way)/randomNumber);
+
+        pixelUnfilled1=blockH;
+        pixelUnfilled2=blockH+way;
+
+        widthblock= (float) (screenX-screenX/1.35);
+
+
+    }
+
+    boolean addNewObstacle(){
+        if(screenX-ob2.right>widthblock)
+
+            return true;
+        else
+            return false;
+    }
+
+
+    void reset(){
+
+        //Top ob1
+
+
+        ob1.top=-screenY/10;
+        ob1.left=screenX/2+ 2*widthblock;// for the next block
+        ob1.bottom=pixelUnfilled1;
+        ob1.right=screenX/2+widthblock+ 2*widthblock; // for the next block
+
+        //Bottom ob2
+
+        ob2.top=pixelUnfilled2;
+        ob2.left=screenX/2+ 2*widthblock;
+        ob2.bottom= (float) (screenY*1.1);
+        ob2.right=screenX/2+widthblock +2*widthblock;
+
+    }
+
+    RectF getOb1(){
+
+        return ob1;
+    }
+
+    RectF getOb2(){
+
+        return ob2;
+
+    }
+
+}
